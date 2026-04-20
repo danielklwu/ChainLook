@@ -10,11 +10,11 @@ expanded to real newlines before processing.
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 import textwrap
-
-import click
+from pathlib import Path
 
 from chaintrace import __version__
 from chaintrace import aggregator, cache, gemini, scraper, search, validator
@@ -37,66 +37,71 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-@click.command()
-@click.version_option(__version__, prog_name="chaintrace")
-@click.argument("query", required=False, default=None)
-@click.option(
-    "--no-cache",
-    is_flag=True,
-    default=False,
-    help="Skip the local cache and always perform a fresh lookup.",
-)
-@click.option(
-    "--cache-dir",
-    default="cache",
-    show_default=True,
-    help="Directory used to store cached results.",
-    type=click.Path(),
-)
-@click.option(
-    "--top-n",
-    default=3,
-    show_default=True,
-    help="Number of search results to retrieve.",
-    type=int,
-)
-@click.option(
-    "--verbose", "-v",
-    is_flag=True,
-    default=False,
-    help="Enable verbose/debug logging.",
-)
-def main(
-    query: str | None,
-    no_cache: bool,
-    cache_dir: str,
-    top_n: int,
-    verbose: bool,
-) -> None:
-    """ChainTrace — hardware component lookup and supply-chain risk analysis.
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="chaintrace",
+        description="ChainTrace — hardware component lookup and supply-chain risk analysis.\n\n"
+                    "Provide a board QUERY string (supports literal \\\\n for multi-line markings), "
+                    "or omit it to be prompted interactively.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "query",
+        nargs="?",
+        default=None,
+        help="Component marking query string.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"chaintrace {__version__}",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        default=False,
+        help="Skip the local cache and always perform a fresh lookup.",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default="cache",
+        metavar="DIR",
+        help="Directory used to store cached results. (default: cache)",
+    )
+    parser.add_argument(
+        "--top-n",
+        default=3,
+        type=int,
+        metavar="N",
+        help="Number of search results to retrieve. (default: 3)",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        default=False,
+        help="Enable verbose/debug logging.",
+    )
 
-    Provide a board QUERY string (supports literal \\\\n for multi-line markings),
-    or omit it to be prompted interactively.
-    """
-    if verbose:
+    args = parser.parse_args()
+
+    if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
     # ------------------------------------------------------------------
     # 1. Collect input
     # ------------------------------------------------------------------
-    query = _resolve_query(query)
+    query = _resolve_query(args.query)
     if not query:
-        click.echo("Error: empty query.", err=True)
+        print("Error: empty query.", file=sys.stderr)
         sys.exit(1)
 
-    click.echo(f"[ChainTrace v{__version__}]")
-    click.echo(f"Query: {repr(query)}\n")
+    print(f"[ChainTrace v{__version__}]")
+    print(f"Query: {repr(query)}\n")
 
     # ------------------------------------------------------------------
     # 2. Cache check
     # ------------------------------------------------------------------
-    from pathlib import Path
-    cache_path = Path(cache_dir)
+    cache_path = Path(args.cache_dir)
 
     # TODO: once cache.load() is implemented, check for a cache hit here
     # and return early when --no-cache is not set.
@@ -104,18 +109,20 @@ def main(
     # ------------------------------------------------------------------
     # 3. Search
     # ------------------------------------------------------------------
-    click.echo("Searching...")
+    print("Searching...")
     search_query = search.build_query(query)
-    results = search.search(search_query, top_n=top_n)
-    click.echo(f"Found {len(results)} result(s).")
+    results = search.search(search_query, top_n=args.top_n)
+    print(f"Found {len(results)} result(s).")
+    for i in range(min(len(results), args.top_n)):
+        print(f"   {i+1}. {results[i].title} ({results[i].url})")
 
     # ------------------------------------------------------------------
     # 4. Scrape
     # ------------------------------------------------------------------
-    click.echo("Scraping sources...")
+    print("Scraping sources...")
     pages = scraper.scrape(results)
     successful = [p for p in pages if p.success]
-    click.echo(f"Scraped {len(successful)}/{len(pages)} page(s) successfully.")
+    print(f"Scraped {len(successful)}/{len(pages)} page(s) successfully.")
 
     # ------------------------------------------------------------------
     # 5. Aggregate
@@ -125,7 +132,7 @@ def main(
     # ------------------------------------------------------------------
     # 6. Gemini classification
     # ------------------------------------------------------------------
-    click.echo("Classifying with Gemini...")
+    print("Classifying with Gemini...")
     prompt = gemini.build_prompt(query, aggregated_text)
     raw_response = gemini.classify(prompt)
 
@@ -161,18 +168,12 @@ def main(
 
 
 def _resolve_query(query: str | None) -> str:
-    """Return the final query string
+    """Return the final query string.
 
     Expands literal ``\\n`` sequences to real newlines.
-
-    Args:
-        query: Value passed on the command line, or ``None``.
-
-    Returns:
-        The resolved, stripped query string.
     """
     if query is None:
-        click.echo("Enter component marking (blank line to finish):")
+        print("Enter component marking (blank line to finish):")
         lines: list[str] = []
         while True:
             try:
@@ -192,24 +193,21 @@ def _resolve_query(query: str | None) -> str:
 
 def _display_result(component) -> None:
     """Print a human-readable summary of *component* to stdout."""
-    import textwrap
-
     risk = ", ".join(component.risk_indicators) if component.risk_indicators else "None detected"
     datasheet = component.datasheet_url or "N/A"
 
-    click.echo("\n" + "─" * 50)
-    click.echo(f"Part:               {component.normalized_part_number}")
-    click.echo(f"Manufacturer:       {component.manufacturer}")
-    click.echo(f"Country:            {component.manufacturer_country or 'Unknown'}")
-    click.echo(f"Type:               {component.component_type}")
-
-    click.echo(f"Datasheet:          {datasheet}")
-    click.echo(f"Risk Indicators:    {risk}")
-    click.echo(f"Confidence:         {component.confidence_score:.2f}")
+    print("\n" + "─" * 50)
+    print(f"Part:               {component.normalized_part_number}")
+    print(f"Manufacturer:       {component.manufacturer}")
+    print(f"Country:            {component.manufacturer_country or 'Unknown'}")
+    print(f"Type:               {component.component_type}")
+    print(f"Datasheet:          {datasheet}")
+    print(f"Risk Indicators:    {risk}")
+    print(f"Confidence:         {component.confidence_score:.2f}")
 
     desc = textwrap.fill(component.description, width=70)
-    click.echo(f"\nDescription:\n{desc}")
-    click.echo("─" * 50)
+    print(f"\nDescription:\n{desc}")
+    print("─" * 50)
 
 
 if __name__ == "__main__":

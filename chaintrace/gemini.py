@@ -125,7 +125,6 @@ def classify(prompt: str, model: str = DEFAULT_MODEL) -> str:
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction="You are an expert hardware component identification system.",
-                max_output_tokens=2000,
                 response_mime_type= 'application/json',
             )
         )
