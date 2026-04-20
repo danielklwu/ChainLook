@@ -1,8 +1,10 @@
 """CLI entry point for ChainTrace.
 
 Usage:
-    chaintrace                  # interactive prompt
+    chaintrace                          # interactive prompt
     chaintrace "DAC\\n32031\\nTI 69K\\nCJ22"   # inline query (literal \\n supported)
+    chaintrace -i input_example.txt     # batch lookup from file (one component per line)
+    chaintrace -i components.txt -o run1  # batch with custom output directory name
 
 Supports multi-line input. Literal '\\n' sequences in the query string are
 expanded to real newlines before processing.
@@ -42,7 +44,8 @@ def main() -> None:
         prog="chaintrace",
         description="ChainTrace — hardware component lookup and supply-chain risk analysis.\n\n"
                     "Provide a board QUERY string (supports literal \\\\n for multi-line markings), "
-                    "or omit it to be prompted interactively.",
+                    "or omit it to be prompted interactively.\n"
+                    "Use -i to process a file with one component marking per line.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -55,6 +58,19 @@ def main() -> None:
         "--version",
         action="version",
         version=f"chaintrace {__version__}",
+    )
+    parser.add_argument(
+        "-i", "--input",
+        metavar="FILE",
+        default=None,
+        help="Input file with one component marking per line (literal \\\\n supported).",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        metavar="NAME",
+        default=None,
+        help="Output directory name under cache dir for batch results. "
+             "Defaults to the input filename stem.",
     )
     parser.add_argument(
         "--no-cache",
@@ -87,9 +103,25 @@ def main() -> None:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # ------------------------------------------------------------------
-    # 1. Collect input
-    # ------------------------------------------------------------------
+    # Mutual exclusion: -i and a positional query don't mix.
+    if args.input and args.query:
+        print("Error: provide either a query argument or -i FILE, not both.", file=sys.stderr)
+        sys.exit(1)
+
+    cache_path = Path(args.cache_dir)
+
+    if args.input:
+        _run_batch(args, cache_path)
+    else:
+        _run_single(args, cache_path)
+
+
+# ---------------------------------------------------------------------------
+# Single-query mode
+# ---------------------------------------------------------------------------
+
+
+def _run_single(args, cache_path: Path) -> None:
     query = _resolve_query(args.query)
     if not query:
         print("Error: empty query.", file=sys.stderr)
@@ -98,52 +130,112 @@ def main() -> None:
     print(f"[ChainTrace v{__version__}]")
     print(f"Query: {repr(query)}\n")
 
-    # ------------------------------------------------------------------
-    # 2. Cache check
-    # ------------------------------------------------------------------
-    cache_path = Path(args.cache_dir)
-
     # TODO: once cache.load() is implemented, check for a cache hit here
     # and return early when --no-cache is not set.
 
-    # ------------------------------------------------------------------
-    # 3. Search
-    # ------------------------------------------------------------------
-    print("Searching...")
-    search_query = search.build_query(query)
-    results = search.search(search_query, top_n=args.top_n)
-    print(f"Found {len(results)} result(s).")
-    for i in range(min(len(results), args.top_n)):
-        print(f"   {i+1}. {results[i].title} ({results[i].url})")
+    component = _lookup(query, cache_path, args.top_n)
+    if component is not None:
+        _display_result(component)
 
-    # ------------------------------------------------------------------
-    # 4. Scrape
-    # ------------------------------------------------------------------
-    print("Scraping sources...")
+
+# ---------------------------------------------------------------------------
+# Batch mode (-i)
+# ---------------------------------------------------------------------------
+
+
+def _run_batch(args, cache_path: Path) -> None:
+    input_file = Path(args.input)
+    if not input_file.exists():
+        print(f"Error: input file not found: {input_file}", file=sys.stderr)
+        sys.exit(1)
+
+    raw_lines = input_file.read_text(encoding="utf-8").splitlines()
+    # Each non-empty line is one component marking; expand literal \n sequences.
+    queries = [
+        line.replace("\\n", "\n").strip()
+        for line in raw_lines
+        if line.strip()
+    ]
+
+    if not queries:
+        print("Error: input file contains no component markings.", file=sys.stderr)
+        sys.exit(1)
+
+    output_name = args.output or input_file.stem
+    batch_cache_dir = cache_path / output_name
+
+    print(f"[ChainTrace v{__version__}] — batch mode")
+    print(f"Input:      {input_file}")
+    print(f"Components: {len(queries)}")
+    print(f"Output dir: {batch_cache_dir}\n")
+
+    successes: list[str] = []
+    failures: list[tuple[str, str]] = []  # (query_repr, error message)
+
+    for idx, query in enumerate(queries, start=1):
+        label = repr(query) if len(query) < 40 else repr(query[:37] + "...")
+        print(f"[{idx}/{len(queries)}] {label}")
+        try:
+            component = _lookup(query, batch_cache_dir, args.top_n)
+            if component is not None:
+                _display_result(component)
+                successes.append(component.normalized_part_number)
+        except Exception as exc:  # noqa: BLE001
+            msg = str(exc)
+            print(f"   ERROR: {msg}", file=sys.stderr)
+            failures.append((label, msg))
+
+    # Final summary
+    print("\n" + "=" * 50)
+    print(f"Batch complete: {len(successes)}/{len(queries)} succeeded")
+    if successes:
+        print("Saved:")
+        for part in successes:
+            print(f"   {batch_cache_dir / (part + '.json')}")
+    if failures:
+        print(f"Failed ({len(failures)}):")
+        for label, msg in failures:
+            print(f"   {label}: {msg}")
+    print("=" * 50)
+
+
+# ---------------------------------------------------------------------------
+# Core lookup pipeline (shared by both modes)
+# ---------------------------------------------------------------------------
+
+
+def _lookup(query: str, cache_path: Path, top_n: int):
+    """Run the full search → scrape → classify → save pipeline for one query.
+
+    Returns the ComponentResult on success, or None if classification failed.
+    Saves the cache entry to *cache_path*.
+    """
+    # Search
+    print("   Searching...")
+    search_query = search.build_query(query)
+    results = search.search(search_query, top_n=top_n)
+    print(f"   Found {len(results)} result(s).")
+    for i in range(min(len(results), top_n)):
+        print(f"      {i+1}. {results[i].title} ({results[i].url})")
+
+    # Scrape
+    print("   Scraping sources...")
     pages = scraper.scrape(results)
     successful = [p for p in pages if p.success]
-    print(f"Scraped {len(successful)}/{len(pages)} page(s) successfully.")
+    print(f"   Scraped {len(successful)}/{len(pages)} page(s) successfully.")
 
-    # ------------------------------------------------------------------
-    # 5. Aggregate
-    # ------------------------------------------------------------------
+    # Aggregate
     aggregated_text = aggregator.aggregate(pages)
 
-    # ------------------------------------------------------------------
-    # 6. Gemini classification
-    # ------------------------------------------------------------------
-    print("Classifying with Gemini...")
+    # Classify
+    print("   Classifying with Gemini...")
     prompt = gemini.build_prompt(query, aggregated_text)
     raw_response = gemini.classify(prompt)
 
-    # ------------------------------------------------------------------
-    # 7. Validate and parse
-    # ------------------------------------------------------------------
+    # Validate
     component = validator.parse(raw_response)
 
-    # ------------------------------------------------------------------
-    # 8. Cache save
-    # ------------------------------------------------------------------
+    # Cache save
     entry = CacheEntry(
         query=query,
         normalized_part_number=component.normalized_part_number,
@@ -156,10 +248,7 @@ def main() -> None:
     saved_path = cache.save(entry, cache_dir=cache_path)
     logger.debug("Cached result to %s", saved_path)
 
-    # ------------------------------------------------------------------
-    # 9. Display summary
-    # ------------------------------------------------------------------
-    _display_result(component)
+    return component
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +274,6 @@ def _resolve_query(query: str | None) -> str:
             lines.append(line)
         query = "\n".join(lines)
     else:
-        # Expand literal \n sequences from shell-quoted strings.
         query = query.replace("\\n", "\n")
 
     return query.strip()

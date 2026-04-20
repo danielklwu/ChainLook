@@ -14,6 +14,9 @@ from google import genai
 from google.genai import types
 
 logger = logging.getLogger(__name__)
+# Silence Google GenAI SDK and HTTP library
+logging.getLogger("google_genai").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Gemini model identifier. Override via CHAINTRACE_GEMINI_MODEL env var.
 DEFAULT_MODEL = "gemini-2.5-flash"
