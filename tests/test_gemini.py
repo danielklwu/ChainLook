@@ -1,11 +1,11 @@
-"""Tests for chaintrace.gemini."""
+"""Tests for chaintrace.lookup.gemini."""
 
 import os
 from unittest.mock import MagicMock
 
 import pytest
 
-from chaintrace import gemini
+from chaintrace.lookup import gemini
 
 SAMPLE_QUERY = "DAC 32031 TI 69K CJ22"
 SAMPLE_AGGREGATED = (
@@ -45,7 +45,7 @@ class TestClassify:
         mock_client = MagicMock()
         mock_client.models.generate_content.return_value = mock_response
 
-        mocker.patch("chaintrace.gemini.genai.Client", return_value=mock_client)
+        mocker.patch("chaintrace.lookup.gemini.genai.Client", return_value=mock_client)
         mocker.patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key"})
 
         result = gemini.classify("some prompt")
@@ -54,8 +54,7 @@ class TestClassify:
 
     def test_raises_on_missing_api_key(self, mocker):
         mocker.patch.dict(os.environ, {"GOOGLE_API_KEY": ""})
-        # Prevent load_dotenv from restoring the key from a real .env file
-        mocker.patch("chaintrace.gemini.load_dotenv")
+        mocker.patch("chaintrace.lookup.gemini.load_dotenv")
 
         with pytest.raises(RuntimeError, match="GOOGLE_API_KEY"):
             gemini.classify("some prompt")
@@ -64,7 +63,7 @@ class TestClassify:
         mock_client = MagicMock()
         mock_client.models.generate_content.side_effect = Exception("network failure")
 
-        mocker.patch("chaintrace.gemini.genai.Client", return_value=mock_client)
+        mocker.patch("chaintrace.lookup.gemini.genai.Client", return_value=mock_client)
         mocker.patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key"})
 
         with pytest.raises(RuntimeError, match="Gemini API error"):
@@ -77,7 +76,7 @@ class TestClassify:
         mock_client = MagicMock()
         mock_client.models.generate_content.return_value = mock_response
 
-        mocker.patch("chaintrace.gemini.genai.Client", return_value=mock_client)
+        mocker.patch("chaintrace.lookup.gemini.genai.Client", return_value=mock_client)
         mocker.patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key"})
 
         gemini.classify("some prompt", model="gemini-2.5-flash")

@@ -1,10 +1,10 @@
-"""Tests for chaintrace.cache."""
+"""Tests for chaintrace.lookup.cache."""
 
 from pathlib import Path
 
 import pytest
 
-from chaintrace import cache
+from chaintrace.lookup import cache
 from chaintrace.models import CacheEntry, ComponentResult, ScrapedPage, SearchResult
 
 SAMPLE_COMPONENT = ComponentResult(

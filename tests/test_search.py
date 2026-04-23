@@ -1,4 +1,4 @@
-"""Tests for chaintrace.search."""
+"""Tests for chaintrace.lookup.search."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from chaintrace import search
+from chaintrace.lookup import search
 from chaintrace.models import SearchResult
 
 # ---------------------------------------------------------------------------
@@ -44,9 +44,8 @@ _FAKE_ORGANIC = [
 
 
 def _mock_response(organic: list[dict], error: str | None = None) -> MagicMock:
-    """Build a mock requests.Response that returns *organic* results."""
     mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()  # no-op
+    mock_resp.raise_for_status = MagicMock()
     payload: dict = {"organic_results": organic}
     if error:
         payload = {"error": error}
@@ -65,7 +64,6 @@ class TestBuildQuery:
         assert "DAC32031" in result
 
     def test_multiline_real_newlines_collapsed(self):
-        """Real newline characters should become spaces."""
         result = search.build_query("DAC\n32031\nTI 69K")
         assert "\n" not in result
         assert "DAC" in result
@@ -73,7 +71,6 @@ class TestBuildQuery:
         assert "TI 69K" in result
 
     def test_multiline_escaped_newlines_collapsed(self):
-        """Literal '\\n' sequences (from CLI input) should become spaces."""
         result = search.build_query("DAC\\n32031\\nCJ22")
         assert "\\n" not in result
         assert "DAC" in result
@@ -102,8 +99,7 @@ class TestBuildQuery:
 
 class TestSearch:
     def test_returns_top_n_results(self, mocker):
-        """search() slices organic_results to exactly top_n items."""
-        mocker.patch("chaintrace.search.requests.get",
+        mocker.patch("chaintrace.lookup.search.requests.get",
                      return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -112,7 +108,7 @@ class TestSearch:
         assert len(results) == 3
 
     def test_returns_search_result_objects(self, mocker):
-        mocker.patch("chaintrace.search.requests.get",
+        mocker.patch("chaintrace.lookup.search.requests.get",
                      return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -122,7 +118,7 @@ class TestSearch:
             assert isinstance(r, SearchResult)
 
     def test_result_fields_populated(self, mocker):
-        mocker.patch("chaintrace.search.requests.get",
+        mocker.patch("chaintrace.lookup.search.requests.get",
                      return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -134,16 +130,15 @@ class TestSearch:
         assert "digital-to-analog" in first.snippet
 
     def test_top_n_respected_when_api_returns_more(self, mocker):
-        """Even if the API returns 4 items, only top_n are returned."""
-        mocker.patch("chaintrace.search.requests.get",
-                     return_value=_mock_response(_FAKE_ORGANIC))  # 4 items
+        mocker.patch("chaintrace.lookup.search.requests.get",
+                     return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
         results = search.search("DAC32031", top_n=2)
         assert len(results) == 2
 
     def test_empty_organic_returns_empty_list(self, mocker):
-        mocker.patch("chaintrace.search.requests.get",
+        mocker.patch("chaintrace.lookup.search.requests.get",
                      return_value=_mock_response([]))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -151,16 +146,13 @@ class TestSearch:
         assert results == []
 
     def test_raises_when_serpapi_key_missing(self, mocker):
-        """RuntimeError raised immediately when no API key is configured."""
-        # Remove key from env; dotenv loading is already done, patch os.getenv.
-        mocker.patch("chaintrace.search.os.getenv", return_value=None)
+        mocker.patch("chaintrace.lookup.search.os.getenv", return_value=None)
 
         with pytest.raises(RuntimeError, match="SERPAPI_KEY"):
             search.search("DAC32031")
 
     def test_raises_on_serpapi_error_payload(self, mocker):
-        """RuntimeError raised when SerpAPI returns {\"error\": \"...\"}."""
-        mocker.patch("chaintrace.search.requests.get",
+        mocker.patch("chaintrace.lookup.search.requests.get",
                      return_value=_mock_response([], error="Invalid API key."))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "bad-key"})
 
@@ -168,19 +160,17 @@ class TestSearch:
             search.search("DAC32031")
 
     def test_raises_on_http_error(self, mocker):
-        """RuntimeError raised when the HTTP request itself fails."""
         mock_resp = MagicMock()
         mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError("429 Too Many Requests")
-        mocker.patch("chaintrace.search.requests.get", return_value=mock_resp)
+        mocker.patch("chaintrace.lookup.search.requests.get", return_value=mock_resp)
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
         with pytest.raises(RuntimeError, match="HTTP error"):
             search.search("DAC32031")
 
     def test_raises_on_timeout(self, mocker):
-        """RuntimeError raised when the request times out."""
         mocker.patch(
-            "chaintrace.search.requests.get",
+            "chaintrace.lookup.search.requests.get",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         )
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
@@ -189,8 +179,7 @@ class TestSearch:
             search.search("DAC32031")
 
     def test_uses_google_light_engine(self, mocker):
-        """Verify the google_light engine is requested."""
-        mock_get = mocker.patch("chaintrace.search.requests.get",
+        mock_get = mocker.patch("chaintrace.lookup.search.requests.get",
                                 return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 

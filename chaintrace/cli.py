@@ -5,6 +5,8 @@ Usage:
     chaintrace "DAC\\n32031\\nTI 69K\\nCJ22"   # inline query (literal \\n supported)
     chaintrace -i input_example.txt     # batch lookup from file (one component per line)
     chaintrace -i components.txt -o run1  # batch with custom output directory name
+    chaintrace --hbom                   # single lookup with risk analysis report
+    chaintrace -i components.txt --hbom # batch with full HBOM report
 
 Supports multi-line input. Literal '\\n' sequences in the query string are
 expanded to real newlines before processing.
@@ -14,17 +16,14 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import textwrap
 from pathlib import Path
 
 from chaintrace import __version__
-from chaintrace import aggregator, cache, gemini, scraper, search, validator
-from chaintrace.models import CacheEntry
-
-# ---------------------------------------------------------------------------
-# Logging setup
-# ---------------------------------------------------------------------------
+from chaintrace.lookup import aggregator, cache, gemini, scraper, search, validator
+from chaintrace.models import CacheEntry, HBOMEntry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -71,6 +70,12 @@ def main() -> None:
         default=None,
         help="Output directory name under cache dir for batch results. "
              "Defaults to the input filename stem.",
+    )
+    parser.add_argument(
+        "--hbom",
+        action="store_true",
+        default=False,
+        help="Run vulnerability analysis and generate an HBOM risk report.",
     )
     parser.add_argument(
         "--no-cache",
@@ -134,8 +139,19 @@ def _run_single(args, cache_path: Path) -> None:
     # and return early when --no-cache is not set.
 
     component = _lookup(query, cache_path, args.top_n)
-    if component is not None:
-        _display_result(component)
+    if component is None:
+        return
+
+    hbom_entry: HBOMEntry | None = None
+    if args.hbom:
+        hbom_entry = _analyze(component)
+
+    _display_result(component, hbom_entry.risk if hbom_entry else None)
+
+    if args.hbom and hbom_entry:
+        from chaintrace.hbom import report
+        hbom_path = report.generate([hbom_entry], cache_path)
+        report.print_summary([hbom_entry], hbom_path)
 
 
 # ---------------------------------------------------------------------------
@@ -167,25 +183,36 @@ def _run_batch(args, cache_path: Path) -> None:
     print(f"[ChainTrace v{__version__}] — batch mode")
     print(f"Input:      {input_file}")
     print(f"Components: {len(queries)}")
-    print(f"Output dir: {batch_cache_dir}\n")
+    print(f"Output dir: {batch_cache_dir}")
+    if args.hbom:
+        print("HBOM:       enabled")
+    print()
 
     successes: list[str] = []
-    failures: list[tuple[str, str]] = []  # (query_repr, error message)
+    failures: list[tuple[str, str]] = []
+    hbom_entries: list[HBOMEntry] = []
 
     for idx, query in enumerate(queries, start=1):
         label = repr(query) if len(query) < 40 else repr(query[:37] + "...")
         print(f"[{idx}/{len(queries)}] {label}")
         try:
             component = _lookup(query, batch_cache_dir, args.top_n)
-            if component is not None:
-                _display_result(component)
-                successes.append(component.normalized_part_number)
+            if component is None:
+                continue
+
+            hbom_entry: HBOMEntry | None = None
+            if args.hbom:
+                hbom_entry = _analyze(component)
+                hbom_entries.append(hbom_entry)
+
+            _display_result(component, hbom_entry.risk if hbom_entry else None)
+            successes.append(component.normalized_part_number)
         except Exception as exc:  # noqa: BLE001
             msg = str(exc)
             print(f"   ERROR: {msg}", file=sys.stderr)
             failures.append((label, msg))
 
-    # Final summary
+    # Batch summary
     print("\n" + "=" * 50)
     print(f"Batch complete: {len(successes)}/{len(queries)} succeeded")
     if successes:
@@ -198,19 +225,19 @@ def _run_batch(args, cache_path: Path) -> None:
             print(f"   {label}: {msg}")
     print("=" * 50)
 
+    if args.hbom and hbom_entries:
+        from chaintrace.hbom import report
+        hbom_path = report.generate(hbom_entries, batch_cache_dir)
+        report.print_summary(hbom_entries, hbom_path)
+
 
 # ---------------------------------------------------------------------------
-# Core lookup pipeline (shared by both modes)
+# Core lookup pipeline
 # ---------------------------------------------------------------------------
 
 
 def _lookup(query: str, cache_path: Path, top_n: int):
-    """Run the full search → scrape → classify → save pipeline for one query.
-
-    Returns the ComponentResult on success, or None if classification failed.
-    Saves the cache entry to *cache_path*.
-    """
-    # Search
+    """Run the full search → scrape → classify → save pipeline for one query."""
     print("   Searching...")
     search_query = search.build_query(query)
     results = search.search(search_query, top_n=top_n)
@@ -224,13 +251,14 @@ def _lookup(query: str, cache_path: Path, top_n: int):
     successful = [p for p in pages if p.success]
     print(f"   Scraped {len(successful)}/{len(pages)} page(s) successfully.")
 
-    # Aggregate
-    aggregated_text = aggregator.aggregate(pages)
+    aggregated_text = aggregator.aggregate(pages, query=query)
 
     # Classify
     print("   Classifying with Gemini...")
     prompt = gemini.build_prompt(query, aggregated_text)
-    raw_response = gemini.classify(prompt)
+    model = os.getenv("CHAINTRACE_GEMINI_MODEL", gemini.DEFAULT_MODEL)
+    print(f"   Using Gemini model: {model}")
+    raw_response = gemini.classify(prompt, model=model)
 
     # Validate
     component = validator.parse(raw_response)
@@ -249,6 +277,16 @@ def _lookup(query: str, cache_path: Path, top_n: int):
     logger.debug("Cached result to %s", saved_path)
 
     return component
+
+
+def _analyze(component) -> HBOMEntry:
+    """Run vulnerability lookup and risk scoring for *component*."""
+    from chaintrace.hbom import analyze
+    print("   Analysing vulnerabilities...")
+    entry = analyze(component)
+    print(f"   Risk: {entry.risk.category} ({entry.risk.total:.2f})  "
+          f"CVEs: {len(entry.risk.cves)}")
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +317,9 @@ def _resolve_query(query: str | None) -> str:
     return query.strip()
 
 
-def _display_result(component) -> None:
+def _display_result(component, risk=None) -> None:
     """Print a human-readable summary of *component* to stdout."""
-    risk = ", ".join(component.risk_indicators) if component.risk_indicators else "None detected"
+    risk_indicators = ", ".join(component.risk_indicators) if component.risk_indicators else "None detected"
     datasheet = component.datasheet_url or "N/A"
 
     print("\n" + "─" * 50)
@@ -290,8 +328,12 @@ def _display_result(component) -> None:
     print(f"Country:            {component.manufacturer_country or 'Unknown'}")
     print(f"Type:               {component.component_type}")
     print(f"Datasheet:          {datasheet}")
-    print(f"Risk Indicators:    {risk}")
+    print(f"Risk Indicators:    {risk_indicators}")
     print(f"Confidence:         {component.confidence_score:.2f}")
+
+    if risk is not None:
+        badge = f"[{risk.category}]"
+        print(f"Risk Score:         {risk.total:.2f}  {badge}")
 
     desc = textwrap.fill(component.description, width=70)
     print(f"\nDescription:\n{desc}")

@@ -1,8 +1,8 @@
-"""Tests for chaintrace.validator."""
+"""Tests for chaintrace.lookup.validator."""
 
 import pytest
 
-from chaintrace import validator
+from chaintrace.lookup import validator
 from chaintrace.models import ComponentResult
 
 VALID_JSON = """\
