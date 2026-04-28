@@ -254,10 +254,9 @@ def _lookup(query: str, cache_path: Path, top_n: int):
     aggregated_text = aggregator.aggregate(pages, query=query)
 
     # Classify
-    print("   Classifying with Gemini...")
+    print("   Classifying...")
     prompt = gemini.build_prompt(query, aggregated_text)
     model = os.getenv("CHAINTRACE_GEMINI_MODEL", gemini.DEFAULT_MODEL)
-    print(f"   Using Gemini model: {model}")
     raw_response = gemini.classify(prompt, model=model)
 
     # Validate

@@ -1,7 +1,7 @@
-"""Gemini prompting engine.
+"""Classification engine.
 
-Constructs a structured prompt from aggregated web content, calls the
-Gemini API, and returns the raw JSON response string.
+Tries Ollama (Gemma 4 E4B) first; falls back to the Gemini API on any
+failure. Both paths return the raw JSON response string.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import logging
 import os
 import time
 
+import requests as _requests
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -19,8 +20,10 @@ logging.getLogger("google_genai").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+OLLAMA_BASE_URL = "http://localhost:11434/v1/"
+OLLAMA_MODEL = "gemma4:e4b"
 
-# Retry settings for transient API errors (overload / rate limit / 5xx).
+# Retry settings for transient Gemini API errors (overload / rate limit / 5xx).
 _MAX_RETRIES = 3
 _RETRY_BACKOFF = (5, 15, 30)  # seconds to wait before each retry attempt
 _RETRYABLE_FRAGMENTS = ("429", "503", "overloaded", "resource exhausted", "quota")
@@ -93,19 +96,38 @@ extract structured metadata from the provided source content.
 """
 
 
-def classify(prompt: str, model: str = DEFAULT_MODEL) -> str:
-    """Send *prompt* to Gemini and return the raw response text.
-
-    Args:
-        prompt: Complete prompt built by :func:`build_prompt`.
-        model:  Gemini model identifier.
-
-    Returns:
-        Raw text response from the API (expected to be JSON).
+def classify_local(prompt: str) -> str:
+    """Send *prompt* to the local Ollama instance and return the raw response text.
 
     Raises:
-        RuntimeError: On API authentication failure, network error, or
-            response timeout.
+        requests.RequestException: On connection failure or non-2xx response.
+        KeyError: If the response shape is unexpected.
+    """
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are an expert hardware component identification system."},
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {"type": "json_object"},
+        "stream": False,
+    }
+    resp = _requests.post(
+        f"{OLLAMA_BASE_URL}chat/completions",
+        json=payload,
+        timeout=120,
+    )
+    resp.raise_for_status()
+    text = resp.json()["choices"][0]["message"]["content"]
+    logger.debug("Ollama raw response: %s", text)
+    return text
+
+
+def _classify_gemini(prompt: str, model: str = DEFAULT_MODEL) -> str:
+    """Send *prompt* to the Gemini API and return the raw response text.
+
+    Raises:
+        RuntimeError: On authentication failure, network error, or exhausted retries.
     """
     load_dotenv()
 
@@ -144,3 +166,21 @@ def classify(prompt: str, model: str = DEFAULT_MODEL) -> str:
             time.sleep(wait)
 
     raise RuntimeError(f"Gemini API error after {_MAX_RETRIES} retries: {last_exc}") from last_exc
+
+
+def classify(prompt: str, model: str = DEFAULT_MODEL) -> str:
+    """Classify *prompt*, trying Ollama first and falling back to Gemini.
+
+    Args:
+        prompt: Complete prompt built by :func:`build_prompt`.
+        model:  Gemini model identifier (only used if Ollama fails).
+
+    Returns:
+        Raw text response (expected to be JSON).
+    """
+    try:
+        return classify_local(prompt)
+    except Exception as exc:
+        logger.warning("Ollama unavailable, falling back to Gemini: %s", exc)
+
+    return _classify_gemini(prompt, model)
