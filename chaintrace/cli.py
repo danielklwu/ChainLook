@@ -19,6 +19,7 @@ import logging
 import os
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 from chaintrace import __version__
@@ -238,6 +239,8 @@ def _run_batch(args, cache_path: Path) -> None:
 
 def _lookup(query: str, cache_path: Path, top_n: int):
     """Run the full search → scrape → classify → save pipeline for one query."""
+    start_time = time.perf_counter()
+
     print("   Searching...")
     search_query = search.build_query(query)
     results = search.search(search_query, top_n=top_n)
@@ -262,6 +265,7 @@ def _lookup(query: str, cache_path: Path, top_n: int):
 
     # Validate
     component = validator.parse(raw_response)
+    component.latency_s = (time.perf_counter() - start_time)
 
     # Cache save
     entry = CacheEntry(
@@ -330,6 +334,7 @@ def _display_result(component, risk=None) -> None:
     print(f"Datasheet:          {datasheet}")
     print(f"Risk Indicators:    {risk_indicators}")
     print(f"Confidence:         {component.confidence_score:.2f}")
+    print(f"Latency:            {component.latency_s:.0f} s")
 
     if risk is not None:
         badge = f"[{risk.category}]"

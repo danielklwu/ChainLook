@@ -19,6 +19,7 @@ class ComponentResult:
     description: str
     risk_indicators: list[str] = field(default_factory=list)
     confidence_score: float = 0.0
+    latency_s: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -31,6 +32,7 @@ class ComponentResult:
             "description": self.description,
             "risk_indicators": self.risk_indicators,
             "confidence_score": self.confidence_score,
+            "latency_ms": self.latency_s,
         }
 
 
