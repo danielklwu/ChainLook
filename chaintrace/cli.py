@@ -338,6 +338,7 @@ def _display_result(component, risk=None) -> None:
     desc = textwrap.fill(component.description, width=70)
     print(f"\nDescription:\n{desc}")
     print("─" * 50)
+    print("\n\n")
 
 
 if __name__ == "__main__":
