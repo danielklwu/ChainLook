@@ -134,6 +134,7 @@ def _run_single(args, cache_path: Path) -> None:
         sys.exit(1)
 
     print(f"[ChainTrace v{__version__}]")
+    print("\n" + "─" * 50)
     print(f"Query: {repr(query)}\n")
 
     # TODO: once cache.load() is implemented, check for a cache hit here
@@ -145,9 +146,12 @@ def _run_single(args, cache_path: Path) -> None:
 
     hbom_entry: HBOMEntry | None = None
     if args.hbom:
+        print("   Analysing vulnerabilities...")
         hbom_entry = _analyze(component)
 
     _display_result(component, hbom_entry.risk if hbom_entry else None)
+    print("─" * 50)
+    print("\n")
 
     if args.hbom and hbom_entry:
         from chaintrace.hbom import report
@@ -195,9 +199,10 @@ def _run_batch(args, cache_path: Path) -> None:
 
     for idx, query in enumerate(queries, start=1):
         label = repr(query) if len(query) < 40 else repr(query[:37] + "...")
+        print("\n" + "─" * 50)
         print(f"[{idx}/{len(queries)}] {label}")
         try:
-            component = _lookup(query, batch_cache_dir, args.top_n)
+            component = _lookup(query, batch_cache_dir, args.top_n, batch_mode=True)
             if component is None:
                 continue
 
@@ -207,6 +212,8 @@ def _run_batch(args, cache_path: Path) -> None:
                 hbom_entries.append(hbom_entry)
 
             _display_result(component, hbom_entry.risk if hbom_entry else None)
+            print("─" * 50)
+            print("\n")
             successes.append(component.normalized_part_number)
         except Exception as exc:  # noqa: BLE001
             msg = str(exc)
@@ -237,11 +244,12 @@ def _run_batch(args, cache_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _lookup(query: str, cache_path: Path, top_n: int):
+def _lookup(query: str, cache_path: Path, top_n: int, batch_mode: bool = False):
     """Run the full search → scrape → classify → save pipeline for one query."""
     start_time = time.perf_counter()
 
-    print("   Searching...")
+    if not batch_mode:
+        print("   Searching...")
     search_query = search.build_query(query)
     results = search.search(search_query, top_n=top_n)
     print(f"   Found {len(results)} result(s).")
@@ -249,18 +257,22 @@ def _lookup(query: str, cache_path: Path, top_n: int):
         print(f"      {i+1}. {results[i].title} ({results[i].url})")
 
     # Scrape
-    print("   Scraping sources...")
+    if not batch_mode:
+        print("   Scraping sources...")
     pages = scraper.scrape(results)
     successful = [p for p in pages if p.success]
-    print(f"   Scraped {len(successful)}/{len(pages)} page(s) successfully.")
+    if not batch_mode:
+        print(f"   Scraped {len(successful)}/{len(pages)} page(s) successfully.")
 
     aggregated_text = aggregator.aggregate(pages, query=query)
 
     # Classify
-    print("   Classifying with Gemini...")
+    if not batch_mode:
+        print("   Classifying with Gemini...")
     prompt = gemini.build_prompt(query, aggregated_text)
     model = os.getenv("CHAINTRACE_GEMINI_MODEL", gemini.DEFAULT_MODEL)
-    print(f"   Using Gemini model: {model}")
+    if not batch_mode:
+        print(f"   Using Gemini model: {model}")
     raw_response = gemini.classify(prompt, model=model)
 
     # Validate
@@ -286,7 +298,6 @@ def _lookup(query: str, cache_path: Path, top_n: int):
 def _analyze(component) -> HBOMEntry:
     """Run vulnerability lookup and risk scoring for *component*."""
     from chaintrace.hbom import analyze
-    print("   Analysing vulnerabilities...")
     entry = analyze(component)
     print(f"   Risk: {entry.risk.category} ({entry.risk.total:.2f})  "
           f"CVEs: {len(entry.risk.cves)}")
@@ -326,7 +337,7 @@ def _display_result(component, risk=None) -> None:
     risk_indicators = ", ".join(component.risk_indicators) if component.risk_indicators else "None detected"
     datasheet = component.datasheet_url or "N/A"
 
-    print("\n" + "─" * 50)
+    print("\n")
     print(f"Part:               {component.normalized_part_number}")
     print(f"Manufacturer:       {component.manufacturer}")
     print(f"Country:            {component.manufacturer_country or 'Unknown'}")
@@ -342,8 +353,6 @@ def _display_result(component, risk=None) -> None:
 
     desc = textwrap.fill(component.description, width=70)
     print(f"\nDescription:\n{desc}")
-    print("─" * 50)
-    print("\n\n")
 
 
 if __name__ == "__main__":
