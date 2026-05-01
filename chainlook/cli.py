@@ -193,6 +193,8 @@ def _run_batch(args, cache_path: Path) -> None:
         print("HBOM:       enabled")
     print()
 
+    batch_start_time = time.perf_counter()
+
     successes: list[str] = []
     failures: list[tuple[str, str]] = []
     hbom_entries: list[HBOMEntry] = []
@@ -237,6 +239,8 @@ def _run_batch(args, cache_path: Path) -> None:
         from chainlook.hbom import report
         hbom_path = report.generate(hbom_entries, batch_cache_dir)
         report.print_summary(hbom_entries, hbom_path)
+    batch_latency = time.perf_counter() - batch_start_time
+    print(f"Total batch latency: {batch_latency:.0f} s\n")
 
 
 # ---------------------------------------------------------------------------
