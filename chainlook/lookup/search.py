@@ -7,7 +7,7 @@ Required environment variable:
     SERPAPI_KEY: Your SerpAPI private key.
 
 Optional environment variable:
-    CHAINTRACE_SEARCH_TOP_N: Override the default number of results (default 3).
+    CHAINLOOK_SEARCH_TOP_N: Override the default number of results (default 3).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import re
 import requests
 from dotenv import load_dotenv
 
-from chaintrace.models import SearchResult
+from chainlook.models import SearchResult
 
 load_dotenv()
 
@@ -64,7 +64,7 @@ def search(query: str, top_n: int = TOP_N) -> list[SearchResult]:
         top_n:  Maximum number of results to return.
 
     Returns:
-        A list of up to *top_n* :class:`~chaintrace.models.SearchResult` objects.
+        A list of up to *top_n* :class:`~chainlook.models.SearchResult` objects.
 
     Raises:
         RuntimeError: If ``SERPAPI_KEY`` is missing, the HTTP request fails,

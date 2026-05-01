@@ -20,7 +20,7 @@ Thresholds
 
 from __future__ import annotations
 
-from chaintrace.models import ComponentResult, RiskScore, VulnEntry
+from chainlook.models import ComponentResult, RiskScore, VulnEntry
 
 # Countries flagged by BIS Entity List / OFAC sanctions (ISO 2-letter and common names).
 _HIGH_RISK_COUNTRIES = frozenset({
@@ -58,14 +58,14 @@ _THRESHOLDS: list[tuple[float, str]] = [
 
 
 def score(component: ComponentResult, cves: list[VulnEntry]) -> RiskScore:
-    """Compute a :class:`~chaintrace.models.RiskScore` for *component*.
+    """Compute a :class:`~chainlook.models.RiskScore` for *component*.
 
     Args:
         component: Identified component with manufacturer/country metadata.
-        cves:      Hardware-relevant CVEs from :mod:`chaintrace.hbom.vulndb`.
+        cves:      Hardware-relevant CVEs from :mod:`chainlook.hbom.vulndb`.
 
     Returns:
-        A fully populated :class:`~chaintrace.models.RiskScore`.
+        A fully populated :class:`~chainlook.models.RiskScore`.
     """
     country_risk = _country_risk(component.manufacturer_country)
     cve_risk = _cve_risk(cves)

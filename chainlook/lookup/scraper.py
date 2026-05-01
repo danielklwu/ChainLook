@@ -13,7 +13,7 @@ from typing import Sequence
 import requests
 from bs4 import BeautifulSoup
 
-from chaintrace.models import ScrapedPage, SearchResult
+from chainlook.models import ScrapedPage, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def scrape(results: Sequence[SearchResult]) -> list[ScrapedPage]:
         results: Search results whose URLs will be fetched.
 
     Returns:
-        A list of :class:`~chaintrace.models.ScrapedPage` objects, one per
+        A list of :class:`~chainlook.models.ScrapedPage` objects, one per
         URL.  Pages that could not be fetched are included with
         ``success=False`` and a descriptive ``error`` message.
     """

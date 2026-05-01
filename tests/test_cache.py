@@ -1,11 +1,11 @@
-"""Tests for chaintrace.lookup.cache."""
+"""Tests for chainlook.lookup.cache."""
 
 from pathlib import Path
 
 import pytest
 
-from chaintrace.lookup import cache
-from chaintrace.models import CacheEntry, ComponentResult, ScrapedPage, SearchResult
+from chainlook.lookup import cache
+from chainlook.models import CacheEntry, ComponentResult, ScrapedPage, SearchResult
 
 SAMPLE_COMPONENT = ComponentResult(
     input_query="DAC 32031 TI 69K CJ22",

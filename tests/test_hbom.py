@@ -1,4 +1,4 @@
-"""Unit tests for chaintrace.hbom: risk_scorer, vulndb, and report."""
+"""Unit tests for chainlook.hbom: risk_scorer, vulndb, and report."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from chaintrace.hbom import report, risk_scorer, vulndb
-from chaintrace.models import ComponentResult, HBOMEntry, RiskScore, VulnEntry
+from chainlook.hbom import report, risk_scorer, vulndb
+from chainlook.models import ComponentResult, HBOMEntry, RiskScore, VulnEntry
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ class TestScore:
         assert result.cves == cves
 
     def test_returns_risk_score_dataclass(self):
-        from chaintrace.models import RiskScore
+        from chainlook.models import RiskScore
         result = risk_scorer.score(_make_component(), [])
         assert isinstance(result, RiskScore)
 
@@ -292,7 +292,7 @@ class TestScore:
             confidence_penalty=0.0,
         )
         # Re-derive category from the module's threshold logic.
-        from chaintrace.hbom.risk_scorer import _THRESHOLDS
+        from chainlook.hbom.risk_scorer import _THRESHOLDS
         category = next(cat for threshold, cat in _THRESHOLDS if total >= threshold)
         assert category == expected_cat
 
@@ -421,7 +421,7 @@ def _mock_nvd(payload: dict) -> MagicMock:
 
 class TestSearchCves:
     def test_returns_hardware_relevant_cve(self, mocker):
-        mocker.patch("chaintrace.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_HARDWARE_HIT))
+        mocker.patch("chainlook.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_HARDWARE_HIT))
         cves = vulndb.search_cves("STM32F407", "STMicroelectronics")
         assert len(cves) == 1
         assert cves[0].cve_id == "CVE-2023-1234"
@@ -429,24 +429,24 @@ class TestSearchCves:
         assert cves[0].severity == "CRITICAL"
 
     def test_filters_non_hardware_cves(self, mocker):
-        mocker.patch("chaintrace.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_NON_HARDWARE_HIT))
+        mocker.patch("chainlook.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_NON_HARDWARE_HIT))
         cves = vulndb.search_cves("PART001", "ACME")
         assert cves == []
 
     def test_empty_response_returns_empty_list(self, mocker):
-        mocker.patch("chaintrace.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_EMPTY))
+        mocker.patch("chainlook.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_EMPTY))
         assert vulndb.search_cves("PART001", "ACME") == []
 
     def test_timeout_returns_empty_list(self, mocker):
         mocker.patch(
-            "chaintrace.hbom.vulndb.requests.get",
+            "chainlook.hbom.vulndb.requests.get",
             side_effect=requests.exceptions.Timeout("timed out"),
         )
         assert vulndb.search_cves("PART001", "ACME") == []
 
     def test_request_exception_returns_empty_list(self, mocker):
         mocker.patch(
-            "chaintrace.hbom.vulndb.requests.get",
+            "chainlook.hbom.vulndb.requests.get",
             side_effect=requests.exceptions.ConnectionError("refused"),
         )
         assert vulndb.search_cves("PART001", "ACME") == []
@@ -455,20 +455,20 @@ class TestSearchCves:
         resp = MagicMock()
         resp.raise_for_status = MagicMock()
         resp.json.side_effect = ValueError("bad json")
-        mocker.patch("chaintrace.hbom.vulndb.requests.get", return_value=resp)
+        mocker.patch("chainlook.hbom.vulndb.requests.get", return_value=resp)
         assert vulndb.search_cves("PART001", "ACME") == []
 
     def test_sends_api_key_header_when_set(self, mocker, monkeypatch):
         monkeypatch.setenv("NVD_API_KEY", "test-nvd-key")
         mock_get = mocker.patch(
-            "chaintrace.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_EMPTY)
+            "chainlook.hbom.vulndb.requests.get", return_value=_mock_nvd(_NVD_EMPTY)
         )
         vulndb.search_cves("PART001", "ACME")
         _, kwargs = mock_get.call_args
         assert kwargs.get("headers", {}).get("apiKey") == "test-nvd-key"
 
     def test_empty_part_number_and_manufacturer_returns_empty(self, mocker):
-        mock_get = mocker.patch("chaintrace.hbom.vulndb.requests.get")
+        mock_get = mocker.patch("chainlook.hbom.vulndb.requests.get")
         result = vulndb.search_cves("", "")
         assert result == []
         mock_get.assert_not_called()
@@ -487,7 +487,7 @@ class TestSearchCves:
                 }
             ]
         }
-        mocker.patch("chaintrace.hbom.vulndb.requests.get", return_value=_mock_nvd(payload))
+        mocker.patch("chainlook.hbom.vulndb.requests.get", return_value=_mock_nvd(payload))
         cves = vulndb.search_cves("PART", "MFG")
         assert len(cves[0].description) <= 400
 

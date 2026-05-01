@@ -1,4 +1,4 @@
-"""End-to-end tests for the ChainTrace CLI.
+"""End-to-end tests for the ChainLook CLI.
 
 All external network calls (SerpAPI, scraper, Gemini, NVD) are mocked.
 Tests exercise main() with real argparse + pipeline code.
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from chaintrace.models import ScrapedPage, SearchResult
+from chainlook.models import ScrapedPage, SearchResult
 
 
 # ---------------------------------------------------------------------------
@@ -62,10 +62,10 @@ _GEMINI_JSON_CN = json.dumps({
 
 def _patch_pipeline(mocker, gemini_json: str = _GEMINI_JSON, cves: list | None = None):
     """Patch all external calls in the lookup + HBOM pipeline."""
-    mocker.patch("chaintrace.lookup.search.search", return_value=_FAKE_SEARCH_RESULTS)
-    mocker.patch("chaintrace.lookup.scraper.scrape", return_value=_FAKE_PAGES)
-    mocker.patch("chaintrace.lookup.gemini.classify", return_value=gemini_json)
-    mocker.patch("chaintrace.hbom.vulndb.search_cves", return_value=cves or [])
+    mocker.patch("chainlook.lookup.search.search", return_value=_FAKE_SEARCH_RESULTS)
+    mocker.patch("chainlook.lookup.scraper.scrape", return_value=_FAKE_PAGES)
+    mocker.patch("chainlook.lookup.gemini.classify", return_value=gemini_json)
+    mocker.patch("chainlook.hbom.vulndb.search_cves", return_value=cves or [])
 
 
 # ---------------------------------------------------------------------------
@@ -77,9 +77,9 @@ class TestSingleQueryMode:
     def test_single_query_prints_part_number(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "STM32F407VG" in out
@@ -87,9 +87,9 @@ class TestSingleQueryMode:
     def test_single_query_prints_manufacturer(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "STMicroelectronics" in out
@@ -97,9 +97,9 @@ class TestSingleQueryMode:
     def test_single_query_saves_cache_file(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         json_files = list(tmp_path.glob("*.json"))
         assert len(json_files) == 1
@@ -107,18 +107,18 @@ class TestSingleQueryMode:
     def test_single_query_hbom_generates_report(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--hbom", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--hbom", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         assert (tmp_path / "hbom.json").exists()
 
     def test_single_query_hbom_prints_risk_summary(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--hbom", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--hbom", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "HBOM RISK SUMMARY" in out
@@ -126,23 +126,23 @@ class TestSingleQueryMode:
     def test_single_query_hbom_shows_risk_score(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--hbom", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--hbom", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "Risk Score:" in out
 
     def test_single_query_hbom_flagged_high_risk(self, mocker, monkeypatch, tmp_path, capsys):
-        from chaintrace.models import VulnEntry
+        from chainlook.models import VulnEntry
         cves = [
             VulnEntry("CVE-2023-9999", "firmware bug in embedded device", 9.8, "CRITICAL", "2023-01-01")
         ] * 5
         _patch_pipeline(mocker, gemini_json=_GEMINI_JSON_CN, cves=cves)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "HI3559AV100", "--hbom", "--cache-dir", str(tmp_path)
+            "chainlook", "HI3559AV100", "--hbom", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "HI3559AV100" in out
@@ -150,30 +150,30 @@ class TestSingleQueryMode:
     def test_no_hbom_flag_skips_report(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         assert not (tmp_path / "hbom.json").exists()
 
     def test_no_hbom_flag_omits_risk_score_line(self, mocker, monkeypatch, tmp_path, capsys):
         _patch_pipeline(mocker)
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--cache-dir", str(tmp_path)
+            "chainlook", "STM32F407", "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "HBOM RISK SUMMARY" not in out
 
     def test_version_flag_prints_version(self, monkeypatch, capsys):
-        monkeypatch.setattr(sys, "argv", ["chaintrace", "--version"])
-        from chaintrace.cli import main
+        monkeypatch.setattr(sys, "argv", ["chainlook", "--version"])
+        from chainlook.cli import main
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 0
         out = capsys.readouterr().out
-        assert "chaintrace" in out
+        assert "chainlook" in out
 
 
 # ---------------------------------------------------------------------------
@@ -191,10 +191,10 @@ class TestBatchMode:
         _patch_pipeline(mocker)
         input_file = self._write_input(tmp_path, ["STM32F407", "LM358", "ATmega328P"])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(input_file),
+            "chainlook", "-i", str(input_file),
             "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "3/3" in out
@@ -203,10 +203,10 @@ class TestBatchMode:
         _patch_pipeline(mocker)
         input_file = self._write_input(tmp_path, ["STM32F407", "STM32F407", "STM32F407"])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(input_file),
+            "chainlook", "-i", str(input_file),
             "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         batch_dir = tmp_path / "components"
         json_files = list(batch_dir.glob("*.json"))
@@ -216,10 +216,10 @@ class TestBatchMode:
         _patch_pipeline(mocker)
         input_file = self._write_input(tmp_path, ["STM32F407", "LM358"])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(input_file), "--hbom",
+            "chainlook", "-i", str(input_file), "--hbom",
             "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         batch_dir = tmp_path / "components"
         assert (batch_dir / "hbom.json").exists()
@@ -233,17 +233,17 @@ class TestBatchMode:
             call_count[0] += 1
             return gemini_jsons[idx]
 
-        mocker.patch("chaintrace.lookup.search.search", return_value=_FAKE_SEARCH_RESULTS)
-        mocker.patch("chaintrace.lookup.scraper.scrape", return_value=_FAKE_PAGES)
-        mocker.patch("chaintrace.lookup.gemini.classify", side_effect=rotating_classify)
-        mocker.patch("chaintrace.hbom.vulndb.search_cves", return_value=[])
+        mocker.patch("chainlook.lookup.search.search", return_value=_FAKE_SEARCH_RESULTS)
+        mocker.patch("chainlook.lookup.scraper.scrape", return_value=_FAKE_PAGES)
+        mocker.patch("chainlook.lookup.gemini.classify", side_effect=rotating_classify)
+        mocker.patch("chainlook.hbom.vulndb.search_cves", return_value=[])
 
         input_file = self._write_input(tmp_path, ["STM32F407", "HI3559AV100"])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(input_file), "--hbom",
+            "chainlook", "-i", str(input_file), "--hbom",
             "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         batch_dir = tmp_path / "components"
         doc = json.loads((batch_dir / "hbom.json").read_text())
@@ -253,10 +253,10 @@ class TestBatchMode:
         _patch_pipeline(mocker)
         input_file = self._write_input(tmp_path, ["STM32F407"])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(input_file), "--hbom",
+            "chainlook", "-i", str(input_file), "--hbom",
             "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         out = capsys.readouterr().out
         assert "HBOM RISK SUMMARY" in out
@@ -265,10 +265,10 @@ class TestBatchMode:
         _patch_pipeline(mocker)
         input_file = self._write_input(tmp_path, ["STM32F407"])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(input_file), "-o", "run1",
+            "chainlook", "-i", str(input_file), "-o", "run1",
             "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         assert (tmp_path / "run1").exists()
 
@@ -276,13 +276,13 @@ class TestBatchMode:
         _patch_pipeline(mocker)
         input_file = self._write_input(tmp_path, [r"DAC\n32031\nTI"])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(input_file),
+            "chainlook", "-i", str(input_file),
             "--cache-dir", str(tmp_path)
         ])
         mock_classify = mocker.patch(
-            "chaintrace.lookup.gemini.classify", return_value=_GEMINI_JSON
+            "chainlook.lookup.gemini.classify", return_value=_GEMINI_JSON
         )
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         prompt_arg = mock_classify.call_args[0][0]
         # The expanded query (with real newlines) should appear in the prompt.
@@ -300,9 +300,9 @@ class TestErrorCases:
         input_file = tmp_path / "comps.txt"
         input_file.write_text("STM32F407")
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "-i", str(input_file)
+            "chainlook", "STM32F407", "-i", str(input_file)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code != 0
@@ -311,9 +311,9 @@ class TestErrorCases:
 
     def test_missing_input_file_exits_with_error(self, monkeypatch, tmp_path, capsys):
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(tmp_path / "nonexistent.txt")
+            "chainlook", "-i", str(tmp_path / "nonexistent.txt")
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code != 0
@@ -324,9 +324,9 @@ class TestErrorCases:
         empty_file = tmp_path / "empty.txt"
         empty_file.write_text("\n\n")
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "-i", str(empty_file)
+            "chainlook", "-i", str(empty_file)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code != 0
@@ -335,16 +335,16 @@ class TestErrorCases:
 
     def test_top_n_flag_respected(self, mocker, monkeypatch, tmp_path, capsys):
         mock_search = mocker.patch(
-            "chaintrace.lookup.search.search", return_value=_FAKE_SEARCH_RESULTS
+            "chainlook.lookup.search.search", return_value=_FAKE_SEARCH_RESULTS
         )
-        mocker.patch("chaintrace.lookup.scraper.scrape", return_value=_FAKE_PAGES)
-        mocker.patch("chaintrace.lookup.gemini.classify", return_value=_GEMINI_JSON)
-        mocker.patch("chaintrace.hbom.vulndb.search_cves", return_value=[])
+        mocker.patch("chainlook.lookup.scraper.scrape", return_value=_FAKE_PAGES)
+        mocker.patch("chainlook.lookup.gemini.classify", return_value=_GEMINI_JSON)
+        mocker.patch("chainlook.hbom.vulndb.search_cves", return_value=[])
         monkeypatch.setattr(sys, "argv", [
-            "chaintrace", "STM32F407", "--top-n", "5",
+            "chainlook", "STM32F407", "--top-n", "5",
             "--cache-dir", str(tmp_path)
         ])
-        from chaintrace.cli import main
+        from chainlook.cli import main
         main()
         _, kwargs = mock_search.call_args
         assert kwargs.get("top_n") == 5

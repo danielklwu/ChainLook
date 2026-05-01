@@ -1,12 +1,12 @@
-"""CLI entry point for ChainTrace.
+"""CLI entry point for ChainLook.
 
 Usage:
-    chaintrace                          # interactive prompt
-    chaintrace "DAC\\n32031\\nTI 69K\\nCJ22"   # inline query (literal \\n supported)
-    chaintrace -i input_example.txt     # batch lookup from file (one component per line)
-    chaintrace -i components.txt -o run1  # batch with custom output directory name
-    chaintrace --hbom                   # single lookup with risk analysis report
-    chaintrace -i components.txt --hbom # batch with full HBOM report
+    chainlook                          # interactive prompt
+    chainlook "DAC\\n32031\\nTI 69K\\nCJ22"   # inline query (literal \\n supported)
+    chainlook -i input_example.txt     # batch lookup from file (one component per line)
+    chainlook -i components.txt -o run1  # batch with custom output directory name
+    chainlook --hbom                   # single lookup with risk analysis report
+    chainlook -i components.txt --hbom # batch with full HBOM report
 
 Supports multi-line input. Literal '\\n' sequences in the query string are
 expanded to real newlines before processing.
@@ -22,9 +22,9 @@ import textwrap
 import time
 from pathlib import Path
 
-from chaintrace import __version__
-from chaintrace.lookup import aggregator, cache, gemini, scraper, search, validator
-from chaintrace.models import CacheEntry, HBOMEntry
+from chainlook import __version__
+from chainlook.lookup import aggregator, cache, gemini, scraper, search, validator
+from chainlook.models import CacheEntry, HBOMEntry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,8 +41,8 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="chaintrace",
-        description="ChainTrace — hardware component lookup and supply-chain risk analysis.\n\n"
+        prog="chainlook",
+        description="ChainLook — hardware component lookup and supply-chain risk analysis.\n\n"
                     "Provide a board QUERY string (supports literal \\\\n for multi-line markings), "
                     "or omit it to be prompted interactively.\n"
                     "Use -i to process a file with one component marking per line.",
@@ -57,7 +57,7 @@ def main() -> None:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"chaintrace {__version__}",
+        version=f"chainlook {__version__}",
     )
     parser.add_argument(
         "-i", "--input",
@@ -133,7 +133,7 @@ def _run_single(args, cache_path: Path) -> None:
         print("Error: empty query.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[ChainTrace v{__version__}]")
+    print(f"[ChainLook v{__version__}]")
     print("\n" + "─" * 50)
     print(f"Query: {repr(query)}\n")
 
@@ -154,7 +154,7 @@ def _run_single(args, cache_path: Path) -> None:
     print("\n")
 
     if args.hbom and hbom_entry:
-        from chaintrace.hbom import report
+        from chainlook.hbom import report
         hbom_path = report.generate([hbom_entry], cache_path)
         report.print_summary([hbom_entry], hbom_path)
 
@@ -185,7 +185,7 @@ def _run_batch(args, cache_path: Path) -> None:
     output_name = args.output or input_file.stem
     batch_cache_dir = cache_path / output_name
 
-    print(f"[ChainTrace v{__version__}] — batch mode")
+    print(f"[ChainLook v{__version__}] — batch mode")
     print(f"Input:      {input_file}")
     print(f"Components: {len(queries)}")
     print(f"Output dir: {batch_cache_dir}")
@@ -234,7 +234,7 @@ def _run_batch(args, cache_path: Path) -> None:
     print("=" * 50)
 
     if args.hbom and hbom_entries:
-        from chaintrace.hbom import report
+        from chainlook.hbom import report
         hbom_path = report.generate(hbom_entries, batch_cache_dir)
         report.print_summary(hbom_entries, hbom_path)
 
@@ -270,7 +270,7 @@ def _lookup(query: str, cache_path: Path, top_n: int, batch_mode: bool = False):
     if not batch_mode:
         print("   Classifying with Gemini...")
     prompt = gemini.build_prompt(query, aggregated_text)
-    model = os.getenv("CHAINTRACE_GEMINI_MODEL", gemini.DEFAULT_MODEL)
+    model = os.getenv("CHAINLOOK_GEMINI_MODEL", gemini.DEFAULT_MODEL)
     if not batch_mode:
         print(f"   Using Gemini model: {model}")
     raw_response = gemini.classify(prompt, model=model)
@@ -297,7 +297,7 @@ def _lookup(query: str, cache_path: Path, top_n: int, batch_mode: bool = False):
 
 def _analyze(component) -> HBOMEntry:
     """Run vulnerability lookup and risk scoring for *component*."""
-    from chaintrace.hbom import analyze
+    from chainlook.hbom import analyze
     entry = analyze(component)
     print(f"   Risk: {entry.risk.category} ({entry.risk.total:.2f})  "
           f"CVEs: {len(entry.risk.cves)}")

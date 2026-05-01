@@ -1,12 +1,12 @@
-"""Tests for chaintrace.lookup.scraper."""
+"""Tests for chainlook.lookup.scraper."""
 
 from unittest.mock import MagicMock
 
 import pytest
 import requests
 
-from chaintrace.lookup import scraper
-from chaintrace.models import ScrapedPage, SearchResult
+from chainlook.lookup import scraper
+from chainlook.models import ScrapedPage, SearchResult
 
 FAKE_RESULT = SearchResult(
     url="https://example.com/datasheet",
@@ -36,7 +36,7 @@ def _mock_get(text: str = _HTML_WITH_NOISE, status_code: int = 200) -> MagicMock
 
 class TestScrape:
     def test_successful_scrape_returns_text(self, mocker):
-        mocker.patch("chaintrace.lookup.scraper.requests.get", return_value=_mock_get())
+        mocker.patch("chainlook.lookup.scraper.requests.get", return_value=_mock_get())
 
         pages = scraper.scrape([FAKE_RESULT])
 
@@ -49,7 +49,7 @@ class TestScrape:
         mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
             response=MagicMock(status_code=403)
         )
-        mocker.patch("chaintrace.lookup.scraper.requests.get", return_value=mock_resp)
+        mocker.patch("chainlook.lookup.scraper.requests.get", return_value=mock_resp)
 
         pages = scraper.scrape([FAKE_RESULT])
 
@@ -59,7 +59,7 @@ class TestScrape:
 
     def test_timeout_returns_error_page(self, mocker):
         mocker.patch(
-            "chaintrace.lookup.scraper.requests.get",
+            "chainlook.lookup.scraper.requests.get",
             side_effect=requests.exceptions.Timeout("timed out"),
         )
 
@@ -77,7 +77,7 @@ class TestScrape:
                 raise requests.exceptions.ConnectionError("refused")
             return _mock_get()
 
-        mocker.patch("chaintrace.lookup.scraper.requests.get", side_effect=side_effect)
+        mocker.patch("chainlook.lookup.scraper.requests.get", side_effect=side_effect)
 
         pages = scraper.scrape([good_result, bad_result])
 
@@ -86,7 +86,7 @@ class TestScrape:
         assert pages[1].success is False
 
     def test_scrape_url_preserved(self, mocker):
-        mocker.patch("chaintrace.lookup.scraper.requests.get", return_value=_mock_get())
+        mocker.patch("chainlook.lookup.scraper.requests.get", return_value=_mock_get())
 
         pages = scraper.scrape([FAKE_RESULT])
 

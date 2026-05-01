@@ -1,1 +1,1 @@
-"""Test package for ChainTrace."""
+"""Test package for ChainLook."""

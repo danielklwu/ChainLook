@@ -12,7 +12,7 @@ import logging
 import re
 from typing import Any
 
-from chaintrace.models import ComponentResult
+from chainlook.models import ComponentResult
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +33,10 @@ def parse(raw_response: str) -> ComponentResult:
     """Parse and validate the raw Gemini response into a :class:`ComponentResult`.
 
     Args:
-        raw_response: Raw text returned by :func:`~chaintrace.lookup.gemini.classify`.
+        raw_response: Raw text returned by :func:`~chainlook.lookup.gemini.classify`.
 
     Returns:
-        A validated :class:`~chaintrace.models.ComponentResult` instance.
+        A validated :class:`~chainlook.models.ComponentResult` instance.
 
     Raises:
         ValueError: If the response is not valid JSON or is missing required fields.

@@ -1,4 +1,4 @@
-"""Tests for chaintrace.lookup.search."""
+"""Tests for chainlook.lookup.search."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from chaintrace.lookup import search
-from chaintrace.models import SearchResult
+from chainlook.lookup import search
+from chainlook.models import SearchResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,7 +99,7 @@ class TestBuildQuery:
 
 class TestSearch:
     def test_returns_top_n_results(self, mocker):
-        mocker.patch("chaintrace.lookup.search.requests.get",
+        mocker.patch("chainlook.lookup.search.requests.get",
                      return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -108,7 +108,7 @@ class TestSearch:
         assert len(results) == 3
 
     def test_returns_search_result_objects(self, mocker):
-        mocker.patch("chaintrace.lookup.search.requests.get",
+        mocker.patch("chainlook.lookup.search.requests.get",
                      return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -118,7 +118,7 @@ class TestSearch:
             assert isinstance(r, SearchResult)
 
     def test_result_fields_populated(self, mocker):
-        mocker.patch("chaintrace.lookup.search.requests.get",
+        mocker.patch("chainlook.lookup.search.requests.get",
                      return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -130,7 +130,7 @@ class TestSearch:
         assert "digital-to-analog" in first.snippet
 
     def test_top_n_respected_when_api_returns_more(self, mocker):
-        mocker.patch("chaintrace.lookup.search.requests.get",
+        mocker.patch("chainlook.lookup.search.requests.get",
                      return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -138,7 +138,7 @@ class TestSearch:
         assert len(results) == 2
 
     def test_empty_organic_returns_empty_list(self, mocker):
-        mocker.patch("chaintrace.lookup.search.requests.get",
+        mocker.patch("chainlook.lookup.search.requests.get",
                      return_value=_mock_response([]))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
@@ -146,13 +146,13 @@ class TestSearch:
         assert results == []
 
     def test_raises_when_serpapi_key_missing(self, mocker):
-        mocker.patch("chaintrace.lookup.search.os.getenv", return_value=None)
+        mocker.patch("chainlook.lookup.search.os.getenv", return_value=None)
 
         with pytest.raises(RuntimeError, match="SERPAPI_KEY"):
             search.search("DAC32031")
 
     def test_raises_on_serpapi_error_payload(self, mocker):
-        mocker.patch("chaintrace.lookup.search.requests.get",
+        mocker.patch("chainlook.lookup.search.requests.get",
                      return_value=_mock_response([], error="Invalid API key."))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "bad-key"})
 
@@ -162,7 +162,7 @@ class TestSearch:
     def test_raises_on_http_error(self, mocker):
         mock_resp = MagicMock()
         mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError("429 Too Many Requests")
-        mocker.patch("chaintrace.lookup.search.requests.get", return_value=mock_resp)
+        mocker.patch("chainlook.lookup.search.requests.get", return_value=mock_resp)
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 
         with pytest.raises(RuntimeError, match="HTTP error"):
@@ -170,7 +170,7 @@ class TestSearch:
 
     def test_raises_on_timeout(self, mocker):
         mocker.patch(
-            "chaintrace.lookup.search.requests.get",
+            "chainlook.lookup.search.requests.get",
             side_effect=requests.exceptions.Timeout("Connection timed out"),
         )
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
@@ -179,7 +179,7 @@ class TestSearch:
             search.search("DAC32031")
 
     def test_uses_google_light_engine(self, mocker):
-        mock_get = mocker.patch("chaintrace.lookup.search.requests.get",
+        mock_get = mocker.patch("chainlook.lookup.search.requests.get",
                                 return_value=_mock_response(_FAKE_ORGANIC))
         mocker.patch.dict(os.environ, {"SERPAPI_KEY": "test-key"})
 

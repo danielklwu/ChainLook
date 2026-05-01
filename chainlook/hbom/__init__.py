@@ -13,10 +13,10 @@ analyze(component)  -> HBOMEntry   run vuln lookup + score a single component
 
 from __future__ import annotations
 
-from chaintrace.hbom import report
-from chaintrace.hbom.risk_scorer import score
-from chaintrace.hbom.vulndb import search_cves
-from chaintrace.models import ComponentResult, HBOMEntry
+from chainlook.hbom import report
+from chainlook.hbom.risk_scorer import score
+from chainlook.hbom.vulndb import search_cves
+from chainlook.models import ComponentResult, HBOMEntry
 
 
 def analyze(component: ComponentResult) -> HBOMEntry:
@@ -26,7 +26,7 @@ def analyze(component: ComponentResult) -> HBOMEntry:
         component: Identified component from the lookup pipeline.
 
     Returns:
-        :class:`~chaintrace.models.HBOMEntry` with component + risk score.
+        :class:`~chainlook.models.HBOMEntry` with component + risk score.
     """
     cves = search_cves(component.normalized_part_number, component.manufacturer)
     risk = score(component, cves)

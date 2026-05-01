@@ -1,4 +1,4 @@
-"""Data models for ChainTrace."""
+"""Data models for ChainLook."""
 
 from __future__ import annotations
 

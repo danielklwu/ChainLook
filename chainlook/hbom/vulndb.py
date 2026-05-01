@@ -16,7 +16,7 @@ import os
 import requests
 from dotenv import load_dotenv
 
-from chaintrace.models import VulnEntry
+from chainlook.models import VulnEntry
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def search_cves(part_number: str, manufacturer: str) -> list[VulnEntry]:
         manufacturer: Manufacturer name (e.g. ``"STMicroelectronics"``).
 
     Returns:
-        List of :class:`~chaintrace.models.VulnEntry` filtered to hardware-
+        List of :class:`~chainlook.models.VulnEntry` filtered to hardware-
         relevant CVEs. Returns an empty list on API errors to avoid blocking
         the main pipeline.
     """

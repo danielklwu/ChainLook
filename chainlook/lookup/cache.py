@@ -13,7 +13,7 @@ import os
 import re
 from pathlib import Path
 
-from chaintrace.models import CacheEntry, ComponentResult
+from chainlook.models import CacheEntry, ComponentResult
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def save(entry: CacheEntry, cache_dir: Path = DEFAULT_CACHE_DIR) -> Path:
     """Serialise *entry* to JSON and write it to the cache directory.
 
     Args:
-        entry:     Full :class:`~chaintrace.models.CacheEntry` to persist.
+        entry:     Full :class:`~chainlook.models.CacheEntry` to persist.
         cache_dir: Target cache directory.
 
     Returns:
@@ -74,14 +74,14 @@ def save(entry: CacheEntry, cache_dir: Path = DEFAULT_CACHE_DIR) -> Path:
 
 
 def load(normalized_part_number: str, cache_dir: Path = DEFAULT_CACHE_DIR) -> ComponentResult | None:
-    """Load a cached :class:`~chaintrace.models.ComponentResult` if it exists.
+    """Load a cached :class:`~chainlook.models.ComponentResult` if it exists.
 
     Args:
         normalized_part_number: Part identifier to look up.
         cache_dir:              Directory to search for cached files.
 
     Returns:
-        A :class:`~chaintrace.models.ComponentResult` if a cache hit is found,
+        A :class:`~chainlook.models.ComponentResult` if a cache hit is found,
         otherwise ``None``.
     """
     path = get_cache_path(normalized_part_number, cache_dir)

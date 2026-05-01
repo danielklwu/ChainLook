@@ -11,7 +11,7 @@ import logging
 import re
 from typing import Sequence
 
-from chaintrace.models import ScrapedPage
+from chainlook.models import ScrapedPage
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def aggregate(pages: Sequence[ScrapedPage], query: str = "") -> str:
     per page, keeping the total prompt payload small.
 
     Args:
-        pages: Scraped pages returned by :func:`~chaintrace.lookup.scraper.scrape`.
+        pages: Scraped pages returned by :func:`~chainlook.lookup.scraper.scrape`.
         query: Original component marking — used to score sentence relevance.
 
     Returns:

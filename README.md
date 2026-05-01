@@ -1,4 +1,4 @@
-# ChainTrace
+# ChainLook
 
 CLI tool for hardware component identification and supply-chain risk analysis.  
 Accepts a PCB board marking, retrieves top web sources, uses Gemini to return structured component metadata, and optionally runs automated HBOM risk scoring against the NVD vulnerability database.
@@ -8,9 +8,9 @@ Accepts a PCB board marking, retrieves top web sources, uses Gemini to return st
 ## Project Structure
 
 ```
-chaintrace/
+chainlook/
 ├── __init__.py         # package version
-├── cli.py              # CLI entry point (chaintrace command)
+├── cli.py              # CLI entry point (chainlook command)
 ├── models.py           # shared dataclasses (ComponentResult, RiskScore, HBOMEntry, …)
 │
 ├── lookup/             # component identification pipeline
@@ -64,22 +64,22 @@ cp .env.example .env
 
 ```bash
 # Single component lookup (use literal \n for multi-line markings)
-chaintrace "DAC\n3203I\nTI 69K\nCJ22"
+chainlook "DAC\n3203I\nTI 69K\nCJ22"
 
 # Single lookup with HBOM risk report
-chaintrace "DAC3203I" --hbom
+chainlook "DAC3203I" --hbom
 
 # Batch lookup from file (one component marking per line)
-chaintrace -i components.txt
+chainlook -i components.txt
 
 # Batch with HBOM risk report written to cache/run1/hbom.json
-chaintrace -i components.txt -o run1 --hbom
+chainlook -i components.txt -o run1 --hbom
 
 # Skip local cache and force fresh lookup
-chaintrace --no-cache "DAC3203I"
+chainlook --no-cache "DAC3203I"
 
 # Verbose logging
-chaintrace -v "DAC3203I"
+chainlook -v "DAC3203I"
 ```
 
 ### Example output — single lookup
@@ -152,5 +152,5 @@ pytest
 | `GOOGLE_API_KEY` | Yes | Gemini API key |
 | `SERPAPI_KEY` | Yes | SerpAPI key for web search |
 | `NVD_API_KEY` | No | NVD API key — raises rate limit from 5 to 50 req/30s |
-| `CHAINTRACE_GEMINI_MODEL` | No | Override Gemini model (default: `gemini-2.5-flash`) |
-| `CHAINTRACE_CACHE_DIR` | No | Override cache directory (default: `cache/`) |
+| `CHAINLOOK_GEMINI_MODEL` | No | Override Gemini model (default: `gemini-2.5-flash`) |
+| `CHAINLOOK_CACHE_DIR` | No | Override cache directory (default: `cache/`) |

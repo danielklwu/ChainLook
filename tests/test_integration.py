@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from chaintrace.hbom import analyze, report
-from chaintrace.hbom import risk_scorer
-from chaintrace.models import ComponentResult, HBOMEntry, RiskScore, VulnEntry
+from chainlook.hbom import analyze, report
+from chainlook.hbom import risk_scorer
+from chainlook.models import ComponentResult, HBOMEntry, RiskScore, VulnEntry
 
 
 # ---------------------------------------------------------------------------
@@ -58,61 +58,61 @@ def _hw_cve(cve_id: str = "CVE-2023-1234", cvss: float = 9.8) -> VulnEntry:
 
 class TestAnalyze:
     def test_returns_hbom_entry(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entry = analyze(_component())
         assert isinstance(entry, HBOMEntry)
 
     def test_component_preserved(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         comp = _component()
         entry = analyze(comp)
         assert entry.component is comp
 
     def test_risk_score_is_risk_score_type(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entry = analyze(_component())
         assert isinstance(entry.risk, RiskScore)
 
     def test_no_cves_produces_zero_cve_risk(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entry = analyze(_component())
         assert entry.risk.cve_risk == pytest.approx(0.0)
 
     def test_cves_raise_cve_risk(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[_hw_cve(cvss=9.8)])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[_hw_cve(cvss=9.8)])
         entry = analyze(_component())
         assert entry.risk.cve_risk > 0.0
         assert len(entry.risk.cves) == 1
 
     def test_multiple_cves_attached(self, mocker):
         cves = [_hw_cve("CVE-2023-0001", 7.0), _hw_cve("CVE-2023-0002", 9.0)]
-        mocker.patch("chaintrace.hbom.search_cves", return_value=cves)
+        mocker.patch("chainlook.hbom.search_cves", return_value=cves)
         entry = analyze(_component())
         assert len(entry.risk.cves) == 2
 
     def test_chinese_manufacturer_raises_country_risk(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entry = analyze(_component(country="cn"))
         assert entry.risk.country_risk == pytest.approx(1.0)
 
     def test_sanctioned_indicator_raises_indicator_risk(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entry = analyze(_component(indicators=["sanctioned entity"]))
         assert entry.risk.indicator_risk == pytest.approx(1.0)
 
     def test_low_confidence_raises_penalty(self, mocker):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entry = analyze(_component(confidence=0.0))
         assert entry.risk.confidence_penalty == pytest.approx(1.0)
 
     def test_search_cves_called_with_part_and_manufacturer(self, mocker):
-        mock_search = mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mock_search = mocker.patch("chainlook.hbom.search_cves", return_value=[])
         analyze(_component(part="STM32F407", manufacturer="STMicroelectronics"))
         mock_search.assert_called_once_with("STM32F407", "STMicroelectronics")
 
     def test_full_risk_pipeline_high_risk_component(self, mocker):
         cves = [_hw_cve(cvss=9.8)] * 5
-        mocker.patch("chaintrace.hbom.search_cves", return_value=cves)
+        mocker.patch("chainlook.hbom.search_cves", return_value=cves)
         entry = analyze(_component(
             country="cn",
             indicators=["sanctioned entity"],
@@ -129,13 +129,13 @@ class TestAnalyze:
 
 class TestReportPipeline:
     def test_generate_from_analyzed_entries(self, mocker, tmp_path):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entries = [analyze(_component(f"PART{i}")) for i in range(3)]
         path = report.generate(entries, tmp_path)
         assert path.exists()
 
     def test_report_contains_all_analyzed_components(self, mocker, tmp_path):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         parts = ["STM32F407", "LM358", "ATmega328P"]
         entries = [analyze(_component(p)) for p in parts]
         path = report.generate(entries, tmp_path)
@@ -145,7 +145,7 @@ class TestReportPipeline:
         assert reported_parts == set(parts)
 
     def test_report_risk_scores_match_analyzer_output(self, mocker, tmp_path):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[_hw_cve(cvss=9.0)])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[_hw_cve(cvss=9.0)])
         entry = analyze(_component("STM32F407", country="cn"))
         path = report.generate([entry], tmp_path)
         doc = json.loads(path.read_text())
@@ -155,7 +155,7 @@ class TestReportPipeline:
 
     def test_report_cves_round_trip(self, mocker, tmp_path):
         cves = [_hw_cve("CVE-2023-AAAA", 8.5)]
-        mocker.patch("chaintrace.hbom.search_cves", return_value=cves)
+        mocker.patch("chainlook.hbom.search_cves", return_value=cves)
         entry = analyze(_component())
         path = report.generate([entry], tmp_path)
         doc = json.loads(path.read_text())
@@ -163,7 +163,7 @@ class TestReportPipeline:
         assert doc["components"][0]["cves"][0]["cve_id"] == "CVE-2023-AAAA"
 
     def test_print_summary_and_generate_consistent_counts(self, mocker, tmp_path, capsys):
-        mocker.patch("chaintrace.hbom.search_cves", return_value=[])
+        mocker.patch("chainlook.hbom.search_cves", return_value=[])
         entries = [analyze(_component(f"P{i}")) for i in range(4)]
         path = report.generate(entries, tmp_path)
         report.print_summary(entries, hbom_path=path)
@@ -172,7 +172,7 @@ class TestReportPipeline:
 
     def test_high_risk_components_appear_in_summary(self, mocker, tmp_path, capsys):
         cves = [_hw_cve(cvss=9.8)] * 5
-        mocker.patch("chaintrace.hbom.search_cves", return_value=cves)
+        mocker.patch("chainlook.hbom.search_cves", return_value=cves)
         entry = analyze(_component("DANGEROUS", country="cn", indicators=["sanctioned entity"]))
         report.print_summary([entry])
         out = capsys.readouterr().out

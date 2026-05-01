@@ -12,7 +12,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from chaintrace.models import HBOMEntry
+from chainlook.models import HBOMEntry
 
 logger = logging.getLogger(__name__)
 
